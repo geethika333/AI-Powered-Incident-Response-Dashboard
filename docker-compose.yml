@@ -1,0 +1,63 @@
+version: "3.9"
+
+services:
+  db:
+    build: ./db
+    container_name: secint-db
+    environment:
+      POSTGRES_USER: secadmin
+      POSTGRES_PASSWORD: secpassword123
+      POSTGRES_DB: security_intel
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U secadmin -d security_intel"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  seed:
+    build:
+      context: ./db
+      dockerfile: Dockerfile.seed
+    container_name: secint-seed
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: security_intel
+      DB_USER: secadmin
+      DB_PASSWORD: secpassword123
+
+  backend:
+    build: ./backend
+    container_name: secint-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: security_intel
+      DB_USER: secadmin
+      DB_PASSWORD: secpassword123
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    container_name: secint-frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    environment:
+      - BACKEND_URL=http://backend:8000
+
+volumes:
+  pgdata:
